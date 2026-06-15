@@ -13,8 +13,7 @@ MobiFlight is no longer required.
 - Supports CDU annunciator LEDs
 - Controls screen and key backlight brightness
 - Saves the last active CDU and brightness on clean shutdown
-- Includes the Boeing CDU font internally
-- Optional loose `Boeing.dat` override is still supported
+- Includes the CDU font internally
 
 ## Requirements
 
@@ -30,19 +29,11 @@ No MobiFlight, pythonnet or MobiFlight DLL is required.
 Typical folder layout:
 
 ```text
+psx_winctrl_pfp_MacOS
+psx_winctrl_pfp.exe
 psx_winctrl_pfp.py
 psx_winctrl_pfp.ini
 ```
-
-For a packaged executable:
-
-```text
-psx_winctrl_pfp.exe
-psx_winctrl_pfp.ini
-```
-
-`Boeing.dat` is embedded in the program.  
-If a `Boeing.dat` file is placed next to the program, that file is used instead.
 
 ## Configuration
 
@@ -151,7 +142,6 @@ With an icon:
 pyinstaller --onefile --console --name psx_winctrl_pfp --icon=psx_pfp7.ico psx_winctrl_pfp.py
 ```
 
-No `--add-data` option is needed for `Boeing.dat`, because the font is embedded.
 
 ## Notes
 
