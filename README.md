@@ -1,0 +1,162 @@
+# PSX WINCTRL PFPx Bridge
+
+A lightweight bridge between **Aerowinx PSX** and a **WINCTRL / Winwing PFP CDU**.
+
+The bridge connects directly to the CDU via HID and to PSX via TCP.  
+MobiFlight is no longer required.
+
+## Features
+
+- Sends CDU key presses from the WINCTRL PFP CDU to PSX
+- Displays the active PSX CDU screen on the hardware CDU
+- Supports Left, Center and Right PSX CDU selection
+- Supports CDU annunciator LEDs
+- Controls screen and key backlight brightness
+- Saves the last active CDU and brightness on clean shutdown
+- Includes the Boeing CDU font internally
+- Optional loose `Boeing.dat` override is still supported
+
+## Requirements
+
+- Aerowinx PSX running with the TCP server enabled
+- WINCTRL / Winwing PFP CDU connected by USB
+- Python 3.10+ if running the `.py` version
+- Or a packaged executable made with PyInstaller
+
+No MobiFlight, pythonnet or MobiFlight DLL is required.
+
+## Files
+
+Typical folder layout:
+
+```text
+psx_winctrl_pfp.py
+psx_winctrl_pfp.ini
+```
+
+For a packaged executable:
+
+```text
+psx_winctrl_pfp.exe
+psx_winctrl_pfp.ini
+```
+
+`Boeing.dat` is embedded in the program.  
+If a `Boeing.dat` file is placed next to the program, that file is used instead.
+
+## Configuration
+
+Example `psx_winctrl_pfp.ini`:
+
+```ini
+[PSX]
+host = 127.0.0.1
+port = 10747
+
+[FMC]
+pid = BB37
+did = 33BB
+ATC_KEY = ALTN
+ACTIVE_CDU = L
+BRIGHTNESS = 16
+```
+
+### PSX
+
+| Setting | Description |
+|---|---|
+| `host` | PSX TCP host |
+| `port` | PSX TCP port |
+
+### FMC
+
+| Setting | Description |
+|---|---|
+| `pid` | USB product ID of the CDU |
+| `did` | WINCTRL destination ID |
+| `ATC_KEY` | `ATC` for original ATC key, `ALTN` to open the ALTN page |
+| `ACTIVE_CDU` | Last selected CDU: `L`, `C` or `R` |
+| `BRIGHTNESS` | Last brightness step, `0` to `21` |
+
+`ACTIVE_CDU` and `BRIGHTNESS` are saved when the bridge is stopped cleanly with `CTRL+C`.
+
+## Running
+
+Start PSX first, then start the bridge.
+
+Python:
+
+```bash
+python psx_winctrl_pfp.py
+```
+
+Debug mode:
+
+```bash
+python psx_winctrl_pfp.py --debug
+```
+
+Packaged executable:
+
+```bash
+psx_winctrl_pfp.exe
+```
+
+Stop the bridge with:
+
+```text
+CTRL+C
+```
+
+This allows the bridge to save the last active CDU and brightness before shutting down.
+
+## Scratchpad commands
+
+Enter these commands directly in the CDU scratchpad:
+
+| Command | Action |
+|---|---|
+| `CDU-L` | Select Left CDU |
+| `CDU-C` | Select Center CDU |
+| `CDU-R` | Select Right CDU |
+| `CDU-ATC` | Use original ATC key behaviour |
+| `CDU-ALTN` | Use ATC key to open ALTN page |
+
+`CDU-ATC` and `CDU-ALTN` are saved immediately.  
+`CDU-L`, `CDU-C` and `CDU-R` are saved on shutdown.
+
+## Brightness
+
+Use the CDU `BRT+` and `BRT-` keys to change screen and key backlight brightness.
+
+The last brightness setting is saved as:
+
+```ini
+BRIGHTNESS = 16
+```
+
+The value range is `0` to `21`.
+
+## Building an executable
+
+Basic PyInstaller command:
+
+```bash
+pyinstaller --onefile --console --name psx_winctrl_pfp psx_winctrl_pfp.py
+```
+
+With an icon:
+
+```bash
+pyinstaller --onefile --console --name psx_winctrl_pfp --icon=psx_pfp7.ico psx_winctrl_pfp.py
+```
+
+No `--add-data` option is needed for `Boeing.dat`, because the font is embedded.
+
+## Notes
+
+- Run from a terminal when possible.
+- Use `CTRL+C` to stop the bridge cleanly.
+- Closing the console window directly may prevent settings from being saved.
+- On macOS and Windows, `CTRL+C` is handled as a clean shutdown request.
+- If the CDU display does not initialize correctly after restarting, unplug/replug the CDU and start the bridge again.
