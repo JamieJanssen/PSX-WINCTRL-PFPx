@@ -19,10 +19,8 @@ MobiFlight is no longer required.
 
 - Aerowinx PSX running with the TCP server enabled
 - WINCTRL / Winwing PFP CDU connected by USB
-- Python 3.10+ if running the `.py` version
+- Python 3.9+ if running the `.py` version
 - Or a packaged executable made with PyInstaller
-
-No MobiFlight, pythonnet or MobiFlight DLL is required.
 
 ## Files
 
