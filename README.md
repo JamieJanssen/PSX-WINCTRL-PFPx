@@ -137,7 +137,7 @@ pyinstaller --onefile --console --name psx_winctrl_pfp psx_winctrl_pfp.py
 With an icon:
 
 ```bash
-pyinstaller --onefile --console --name psx_winctrl_pfp --icon=psx_pfp7.ico psx_winctrl_pfp.py
+pyinstaller --onefile --console --name psx_winctrl_pfp --icon=<icon file> psx_winctrl_pfp.py
 ```
 
 
