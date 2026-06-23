@@ -12,6 +12,7 @@ MobiFlight is no longer required.
 - Supports Left, Center and Right PSX CDU selection
 - Supports CDU annunciator LEDs
 - Controls screen and key backlight brightness
+- Shows a temporary brightness indicator while adjusting brightness
 - Saves the last active CDU and brightness on clean shutdown
 - Includes the CDU font internally
 
@@ -65,7 +66,7 @@ BRIGHTNESS = 16
 | `did` | WINCTRL destination ID |
 | `ATC_KEY` | `ATC` for original ATC key, `ALTN` to open the ALTN page |
 | `ACTIVE_CDU` | Last selected CDU: `L`, `C` or `R` |
-| `BRIGHTNESS` | Last brightness step, `0` to `21` |
+| `BRIGHTNESS` | Last brightness step, `0` to `23` |
 
 `ACTIVE_CDU` and `BRIGHTNESS` are saved when the bridge is stopped cleanly with `CTRL+C`.
 
@@ -116,15 +117,15 @@ Enter these commands directly in the CDU scratchpad:
 
 ## Brightness
 
-Use the CDU `BRT+` and `BRT-` keys to change screen and key backlight brightness.
+Use the CDU `BRT+` and `BRT-` keys to change screen and key backlight brightness. A temporary brightness indicator is shown on the scratchpad line while adjusting it.
 
-The last brightness setting is saved as:
+The last brightness setting is saved as (example):
 
 ```ini
 BRIGHTNESS = 16
 ```
 
-The value range is `0` to `21`.
+The value range is `0` to `23`.
 
 ## Building an executable
 
