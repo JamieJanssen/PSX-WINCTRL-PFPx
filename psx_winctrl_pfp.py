@@ -1084,7 +1084,7 @@ except ImportError:
 # Version / debug
 # ============================================================
 
-VERSION = "1.21"
+VERSION = "1.24"
 DEBUG = "--debug" in [arg.lower() for arg in sys.argv[1:]]
 
 SHUTDOWN_REQUESTED = threading.Event()
@@ -1222,7 +1222,7 @@ class RuntimeConfig:
             return self.active_cdu_dirty
 
     def set_brightness_step(self, step, mark_dirty=True):
-        step = max(0, min(PFP7_SCREEN_BRIGHTNESSS - 1, int(step)))
+        step = max(0, min(PFP7_SCREEN_BRIGHTNESS_STEPS - 1, int(step)))
 
         with self.lock:
             if self.brightness_step != step:
@@ -1383,28 +1383,32 @@ PFP7_LED_INTENSITY = 255
 
 # PFP7 screen backlight brightness
 # Channel 0x01 controls the screen backlight.
-# Brightness uses 22 steps mapped from 10 to 255.
+# Brightness uses 24 values (0 to 23) mapped from 10 to 255.
 PFP7_SCREEN_BACKLIGHT_CHANNEL = 0x01
 PFP_KEY_BACKLIGHT_CHANNEL = 0x00
 PFP7_SCREEN_BRIGHTNESS_MIN = 10
 PFP7_SCREEN_BRIGHTNESS_MAX = 255
-PFP7_SCREEN_BRIGHTNESSS = 22
+PFP7_SCREEN_BRIGHTNESS_STEPS = 24
 PFP7_SCREEN_BRIGHTNESS_DEFAULT_STEP = 16
 
 # Hold behavior for BRT+/BRT-
 # One step is applied immediately on press.
-# After 0.5s hold, brightness repeats. Full 22-step range takes ~3 seconds.
+# After 0.5s hold, brightness repeats. Full range takes about 3 seconds.
 PFP7_BRT_HOLD_DELAY = 0.5
-PFP7_BRT_FULL_RANGE_SECONDS = 3.0
-PFP7_BRT_REPEAT_INTERVAL = PFP7_BRT_FULL_RANGE_SECONDS / (PFP7_SCREEN_BRIGHTNESSS - 1)
+PFP7_BRT_FULL_RANGE_SECONDS = 2.6
+PFP7_BRT_REPEAT_INTERVAL = PFP7_BRT_FULL_RANGE_SECONDS / (PFP7_SCREEN_BRIGHTNESS_STEPS - 1)
+
+# PSX-style brightness indication shown temporarily on the scratchpad row.
+BRIGHTNESS_OVERLAY_SECONDS = 2.2
+BRIGHTNESS_BLOCK = "\u2588"  # U+2588 FULL BLOCK
 
 
 def brightness_value_from_step(step):
-    step = max(0, min(PFP7_SCREEN_BRIGHTNESSS - 1, step))
+    step = max(0, min(PFP7_SCREEN_BRIGHTNESS_STEPS - 1, step))
 
     span = PFP7_SCREEN_BRIGHTNESS_MAX - PFP7_SCREEN_BRIGHTNESS_MIN
     value = PFP7_SCREEN_BRIGHTNESS_MIN + round(
-        span * step / (PFP7_SCREEN_BRIGHTNESSS - 1)
+        span * step / (PFP7_SCREEN_BRIGHTNESS_STEPS - 1)
     )
 
     return max(0, min(255, value))
@@ -1425,7 +1429,12 @@ PSX_NAME_TO_CODE = {
     "EXEC": 40,
 }
 
-os.system("cls" if os.name == "nt" else "clear")
+def clear_console():
+    os.system("cls" if os.name == "nt" else "clear")
+
+
+clear_console()
+
 
 class StatusLog:
     def __init__(self):
@@ -1439,6 +1448,38 @@ class StatusLog:
                    Jamie Janssen © 2026
 ===============================================================
 """, flush=True)
+
+    def reconnect_screen(self):
+        with self.lock:
+            clear_console()
+            print(f"""
+===============================================================
+            PSX ↔ WinCTRL PFPx Bridge  v{VERSION}
+---------------------------------------------------------------
+                   Jamie Janssen © 2026
+===============================================================
+""", flush=True)
+
+            command_lines = (
+                "Press CTRL+C to quit.",
+                "",
+                "+-----------------------------+",
+                "| Scratchpad commands         |",
+                "+-----------------------------+",
+                "| CDU-L     Left CDU          |",
+                "| CDU-C     Center CDU        |",
+                "| CDU-R     Right CDU         |",
+                "| CDU-ATC   ATC key mode      |",
+                "| CDU-ALTN  ALTN page mode    |",
+                "+-----------------------------+",
+            )
+
+            for line in command_lines:
+                if DEBUG:
+                    timestamp = time.strftime("%H:%M:%S")
+                    print(f"{timestamp}  {ANSI_HIGHLIGHT}{line}{ANSI_RESET}", flush=True)
+                else:
+                    print(f"{ANSI_HIGHLIGHT}{line}{ANSI_RESET}", flush=True)
 
     def start(self):
         self.header()
@@ -1576,10 +1617,22 @@ def atc_altn_to_ini_value(atc_altn):
 
 
 def connect_with_retry(host, port, name, stop_evt=None, retry_delay=5.0):
+    """Connect until available, reporting the connection state once.
+
+    Returns:
+        (socket_or_none, was_unavailable)
+    """
+    unavailable_reported = False
+    connecting_reported = False
+
     while stop_evt is None or not stop_evt.is_set():
         sock = None
 
         try:
+            if not connecting_reported:
+                log(f"[{name}] connecting...")
+                connecting_reported = True
+
             log_debug(f"[{name}] connecting {host}:{port}...")
 
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1587,23 +1640,23 @@ def connect_with_retry(host, port, name, stop_evt=None, retry_delay=5.0):
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             sock.settimeout(1.0)
 
-            log(f"[{name}] connected")
-            return sock
+            return sock, unavailable_reported
 
         except KeyboardInterrupt:
-            log(f"[{name}] stopped during connection retry")
-
             try:
                 if sock:
                     sock.close()
             except Exception:
                 pass
-
             raise
 
         except (ConnectionRefusedError, TimeoutError, OSError) as e:
-            log(f"[{name}] not available: {e}")
-            log(f"[{name}] retrying in {retry_delay:.0f} seconds...")
+            if not unavailable_reported:
+                log(f"[{name}] not available")
+                unavailable_reported = True
+
+            log_debug(f"[{name}] connect error: {repr(e)}")
+            log_debug(f"[{name}] retrying in {retry_delay:.0f} seconds...")
 
             try:
                 if sock:
@@ -1615,11 +1668,11 @@ def connect_with_retry(host, port, name, stop_evt=None, retry_delay=5.0):
 
             while time.time() < end_time:
                 if stop_evt is not None and stop_evt.is_set():
-                    return None
+                    return None, unavailable_reported
 
                 time.sleep(0.1)
 
-    return None
+    return None, unavailable_reported
 
 
 class Pfp7LedController:
@@ -1722,7 +1775,7 @@ class Pfp7LedController:
             return self.screen_brightness_step
 
     def _set_screen_brightness_step_unlocked(self, step, force=False):
-        step = max(0, min(PFP7_SCREEN_BRIGHTNESSS - 1, step))
+        step = max(0, min(PFP7_SCREEN_BRIGHTNESS_STEPS - 1, step))
         value = brightness_value_from_step(step)
 
         if not force and step == self.screen_brightness_step:
@@ -1742,7 +1795,7 @@ class Pfp7LedController:
 
         log_debug(
             f"[PFP BRT] screen/key backlight "
-            f"step {step + 1}/{PFP7_SCREEN_BRIGHTNESSS} value={value}"
+            f"step {step + 1}/{PFP7_SCREEN_BRIGHTNESS_STEPS} value={value}"
         )
 
     def apply_psx_cdu_lights_bitmask(self, state):
@@ -1817,7 +1870,7 @@ def load_config():
         "BRIGHTNESS",
         fallback=PFP7_SCREEN_BRIGHTNESS_DEFAULT_STEP
     )
-    brightness_step = max(0, min(PFP7_SCREEN_BRIGHTNESSS - 1, brightness_step))
+    brightness_step = max(0, min(PFP7_SCREEN_BRIGHTNESS_STEPS - 1, brightness_step))
     RUNTIME_CONFIG.set_brightness_step(brightness_step, mark_dirty=False)
 
     log_debug(f"[CONFIG] PSX {host}:{port}")
@@ -2459,6 +2512,12 @@ class PsxSender:
         self.fmc_timer = None
         self.fmc_lock = threading.Lock()
 
+        # Temporary BRT+/BRT- feedback. The real PSX scratchpad is never changed;
+        # this is only a rendered overlay on the final CDU row.
+        self.brightness_overlay_step = None
+        self.brightness_overlay_until = 0.0
+        self.brightness_overlay_timer = None
+
         self.cdu_lights_state = {}
         self.cdu_blank_state = {"L": 0, "C": 0, "R": 0}
         self.qi248_state = None
@@ -2627,7 +2686,7 @@ class PsxSender:
                 if self.sock:
                     return True
 
-            s = connect_with_retry(
+            s, was_unavailable = connect_with_retry(
                 self.host,
                 self.port,
                 "PSX",
@@ -2637,6 +2696,11 @@ class PsxSender:
 
             if s is None:
                 return False
+
+            if was_unavailable:
+                STATUS.reconnect_screen()
+
+            log("[PSX] connected")
 
             try:
                 s.sendall(b"clientName=PSX WinCTRL PFPx Bridge\n")
@@ -2843,6 +2907,66 @@ class PsxSender:
 
         self._send_fmc_frame()
 
+    def _brightness_overlay_line(self, step):
+        """Return the 24-column PSX-style BRT indicator.
+
+        Step 0 shows one block; step 23 shows all 24 blocks. While the
+        brightness is below maximum, the plus sign stays at the far-right
+        scratchpad position. At maximum, the 24th block replaces the plus sign.
+        """
+        step = max(0, min(PFP7_SCREEN_BRIGHTNESS_STEPS - 1, int(step)))
+        block_count = step + 1
+
+        if block_count >= FMC_WIDTH:
+            return BRIGHTNESS_BLOCK * FMC_WIDTH
+
+        return (
+            (BRIGHTNESS_BLOCK * block_count)
+            + (" " * (FMC_WIDTH - block_count - 1))
+            + "+"
+        )
+
+    def _brightness_overlay_expired(self):
+        with self.fmc_lock:
+            remaining = self.brightness_overlay_until - time.monotonic()
+
+            if remaining > 0:
+                timer = threading.Timer(remaining, self._brightness_overlay_expired)
+                timer.daemon = True
+                self.brightness_overlay_timer = timer
+                timer.start()
+                return
+
+            self.brightness_overlay_step = None
+            self.brightness_overlay_until = 0.0
+            self.brightness_overlay_timer = None
+            self.fmc_dirty = True
+
+        # Redraw the cached, current PSX scratchpad after the overlay disappears.
+        self._send_fmc_frame()
+
+    def show_brightness_overlay(self, step):
+        """Show updated brightness feedback for 2.2 seconds and reset its timer."""
+        step = max(0, min(PFP7_SCREEN_BRIGHTNESS_STEPS - 1, int(step)))
+
+        with self.fmc_lock:
+            self.brightness_overlay_step = step
+            self.brightness_overlay_until = time.monotonic() + BRIGHTNESS_OVERLAY_SECONDS
+            self.fmc_dirty = True
+
+            if self.brightness_overlay_timer:
+                self.brightness_overlay_timer.cancel()
+
+            timer = threading.Timer(
+                BRIGHTNESS_OVERLAY_SECONDS,
+                self._brightness_overlay_expired
+            )
+            timer.daemon = True
+            self.brightness_overlay_timer = timer
+            timer.start()
+
+        self._send_fmc_frame()
+
     def _send_fmc_frame(self):
         with self.fmc_lock:
             if not self.fmc_dirty:
@@ -2873,7 +2997,23 @@ class PsxSender:
                 # CRT/legacy mode: keep the existing all-green behavior.
                 ordered_color_lines = None
 
-        # Debug: FMC frame queued for MobiFlight
+        # Render a temporary brightness overlay on the scratchpad row only.
+        # Incoming PSX scratchpad updates remain cached and will reappear later.
+        with self.fmc_lock:
+            overlay_active = (
+                self.brightness_overlay_step is not None
+                and time.monotonic() < self.brightness_overlay_until
+            )
+            overlay_step = self.brightness_overlay_step
+
+        if overlay_active:
+            ordered_lines[-1] = self._brightness_overlay_line(overlay_step)
+
+            if ordered_color_lines is not None:
+                ordered_color_lines = list(ordered_color_lines)
+                ordered_color_lines[-1] = "w" * FMC_WIDTH
+
+        # Debug: FMC frame queued for direct HID display
         log_debug("[FMC] frame queued")
         self.mobiflight.send_lines(ordered_lines, ordered_color_lines)
 
@@ -3163,6 +3303,7 @@ def main():
                 and now - brt_last_repeat_time >= PFP7_BRT_REPEAT_INTERVAL
             ):
                 pfp7_leds.change_screen_brightness_step(brt_hold_direction)
+                psx.show_brightness_overlay(pfp7_leds.get_screen_brightness_step())
                 brt_last_repeat_time = now
 
             # Hardware key release handling.
@@ -3196,6 +3337,7 @@ def main():
 
                 if name == "BRT+":
                     pfp7_leds.change_screen_brightness_step(+1)
+                    psx.show_brightness_overlay(pfp7_leds.get_screen_brightness_step())
                     brt_hold_direction = +1
                     brt_hold_start_time = now
                     brt_last_repeat_time = now
@@ -3203,6 +3345,7 @@ def main():
 
                 if name == "BRT-":
                     pfp7_leds.change_screen_brightness_step(-1)
+                    psx.show_brightness_overlay(pfp7_leds.get_screen_brightness_step())
                     brt_hold_direction = -1
                     brt_hold_start_time = now
                     brt_last_repeat_time = now
