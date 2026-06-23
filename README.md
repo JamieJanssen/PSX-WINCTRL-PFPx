@@ -28,7 +28,7 @@ MobiFlight is no longer required.
 Typical folder layout:
 
 ```text
-psx_winctrl_pfp_MacOS
+macOS unzip and place in Applications Aerowinx PFPx.zip
 psx_winctrl_pfp.exe
 psx_winctrl_pfp.py
 psx_winctrl_pfp.ini
