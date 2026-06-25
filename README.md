@@ -40,6 +40,8 @@ For macOS, unzip `Aerowinx PFPx.zip` and place the application in the Applicatio
 
 ## Supported devices
 
+The Vendor ID (VID) is hardcoded and set to ```4098```
+
 Set `pid` and `did` in `psx_winctrl_pfp.ini` to match the connected WINCTRL CDU.
 
 | Device | Position      |  `pid` |  `did` |
