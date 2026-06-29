@@ -3,7 +3,6 @@
 A lightweight bridge between **Aerowinx PSX** and a **WINCTRL / Winwing PFP CDU**.
 
 The bridge connects directly to the CDU via HID and to PSX via TCP.
-MobiFlight is no longer required.
 
 ## Features
 
@@ -14,7 +13,12 @@ MobiFlight is no longer required.
 * Controls screen and key backlight brightness
 * Shows a temporary brightness indicator while adjusting brightness
 * Saves the last active CDU and brightness on clean shutdown
-* Includes the CDU font internally
+* Includes the Aerowinx MCDU font internally
+
+## Font
+
+The bridge includes the Aerowinx MCDU font internally.  
+Font by **Martin and Hardy**.
 
 ## Requirements
 
